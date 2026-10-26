@@ -1,0 +1,19 @@
+{
+  "reference": "RUN-1",
+  "quote_id": "PASTE_QUOTE_ID_HERE",
+  "vehicle_type": "van",
+  "pickup": {
+    "label": "Warehouse A, 3040 Deziel Dr, Windsor, ON",
+    "lat": "42.3149", "lng": "-83.0364",
+    "contact": { "name": "Warehouse A", "phone_number": "+15195550137", "preference": "pickup" }
+  },
+  "dropoffs": [
+    { "reference": "SHOP-10432", "label": "1823 Wyandotte St E, Windsor, ON", "lat": "42.3201", "lng": "-83.0187",
+      "parcels": { "small": 2, "medium": 1 },
+      "contact": { "name": "Jordan Alvarez", "phone_number": "+15195550188", "preference": "leave_at_door" } },
+    { "reference": "SHOP-10433", "label": "3100 Howard Ave, Windsor, ON", "lat": "42.2789", "lng": "-82.9912",
+      "parcels": { "small": 4 },
+      "contact": { "name": "Priya Raman", "phone_number": "+15195550190", "preference": "meet_at_door" } }
+  ],
+  "payment": { "method": "wallet" }
+}
