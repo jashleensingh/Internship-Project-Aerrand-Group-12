@@ -1,0 +1,7 @@
+{
+  "pickup": { "lat": 42.3149, "lng": -83.0364 },
+  "stops": [
+    { "lat": 42.3201, "lng": -83.0187, "parcels": { "small": 2, "medium": 1 } },
+    { "lat": 42.2789, "lng": -82.9912, "parcels": { "small": 4 } }
+  ]
+}
