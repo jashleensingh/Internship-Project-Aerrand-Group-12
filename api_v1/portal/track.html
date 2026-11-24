@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<meta name="robots" content="noindex">
+<title>Track your delivery</title>
+<script>
+/* customers have no theme switch: use their saved choice if they also use the portal, else follow the device */
+(function(){try{var t=localStorage.getItem("theme")||(matchMedia("(prefers-color-scheme:light)").matches?"light":"dark");document.documentElement.setAttribute("data-theme",t==="light"?"light":"dark")}catch(e){}})();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23FF8528'/%3E%3Cstop offset='1' stop-color='%23EF3F45'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M7 22c5 0 4-12 9-12s4 12 9 12' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal/assets/leaflet.css">
+<link rel="stylesheet" href="/portal/assets/app.css">
+<link rel="stylesheet" href="/portal/assets/map.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FF8528"/><stop offset="1" stop-color="#EF3F45"/></linearGradient></defs>
+  <symbol id="logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M7 22c5 0 4-12 9-12s4 12 9 12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17h.01"/></symbol>
+</svg>
+<div class="cust">
+  <header><span class="logo"><svg width="28" height="28"><use href="#logo"/></svg><span>Aerrand</span></span><span class="grow"></span><span class="badge brand">Live tracking</span></header>
+  <main id="out" aria-live="polite"><div class="card"><div class="card-b"><span class="skel block" style="width:60%;height:26px"></span><span class="skel block" style="width:35%;margin-top:14px"></span></div></div></main>
+  <p class="fine">Locations update every few seconds. The route is drawn as a straight line and the time is an estimate.</p>
+</div>
+<script src="/portal/assets/leaflet.js"></script>
+<script src="/portal/assets/map.js"></script>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = s => s ? new Date(s).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"}) : "";
+const id = decodeURIComponent(location.pathname.split("/").filter(Boolean).pop() || "");
+const PHASES = [["broadcasted","Finding a driver"],["accepted","Driver assigned"],["arrived","At pickup"],["picked_up","Picked up"],["in_transit","On the way"],["arrived_dropoff","Arrived"],["delivered","Delivered"]];
+const HEADLINE = {pending:"We're getting things ready", broadcasted:"Finding a driver", accepted:"Your driver is on the way to pick up", arrived:"Your driver is picking up your parcel", picked_up:"Your parcel is picked up", in_transit:"Your parcel is on its way", arrived_dropoff:"Your driver has arrived", delivered:"Delivered", cancelled:"This delivery was cancelled"};
+const STATE = {AERRANDER_ASSIGNED:"Driver assigned", AT_PICKUP_LOADING:"Driver at pickup", ITEMS_COLLECTED:"Parcel collected", ROUTE_IN_PROGRESS:"On the way", AT_DROPOFF:"Driver at your door", DELIVERED:"Delivered", CANCELLED:"Cancelled"};
+let map = null, timer = null, built = false;
+
+async function load() {
+  let r; try { r = await fetch("/v1/errands/" + encodeURIComponent(id) + "/public", {headers:{Accept:"application/json"}}); } catch { return notice("alert", "We can't reach the server", "Check your connection. We'll keep trying."); }
+  if (r.status === 404) { clearInterval(timer); return notice("search", "We can't find that delivery", "Check the link you were sent."); }
+  if (!r.ok) return;
+  paint((await r.json()).data);
+}
+function notice(icon, t, b) { if (built) return; $("#out").innerHTML = `<div class="card"><div class="empty"><span class="glyph"><svg class="i lg" aria-hidden="true"><use href="#i-${icon}"/></svg></span><b>${esc(t)}</b><span>${esc(b)}</span></div></div>`; }
+function paint(d) {
+  const status = d.status, idx = PHASES.findIndex(p => p[0] === status), cancelled = status === "cancelled", done = status === "delivered";
+  const pick = {lat:+d.pickup.lat, lng:+d.pickup.lng}, drop = {lat:+d.dropoff.lat, lng:+d.dropoff.lng};
+  const drv = d.driver_lat ? {lat:+d.driver_lat, lng:+d.driver_lng} : null;
+  const e = KPMap.eta(drv, status, pick, drop);
+  if (!built) {
+    built = true;
+    $("#out").innerHTML = `<h1 id="hl"></h1><p id="sub" class="row" style="margin-top:8px;gap:8px"></p>
+      <div class="mapwrap"><div id="map" role="img" aria-label="Map showing the driver's current position"></div><div class="maptag" id="chip" hidden></div></div>
+      <div class="card"><div class="card-b" id="drvBox"></div></div>
+      <div class="card" id="progCard"><div class="card-h"><h2>Progress</h2></div><div class="card-b" style="padding-top:4px"><ol class="phases" id="phases"></ol></div></div>
+      <div class="card"><div class="card-h"><h2>Updates</h2></div><div class="card-b"><ul class="tl" id="tl"></ul></div></div>`;
+    map = KPMap.create($("#map"));
+    map.setRoute([{lat:pick.lat, lng:pick.lng, kind:"pickup", label:"A", title:"Pickup: " + d.pickup.label}, {lat:drop.lat, lng:drop.lng, kind:"stop", label:"B", title:"Drop-off: " + d.dropoff.label}]);
+  }
+  document.title = (HEADLINE[status] || "Track your delivery") + " · Aerrand";
+  $("#hl").textContent = HEADLINE[status] || "Tracking your delivery";
+  $("#sub").innerHTML = `<span class="badge ${done ? "ok" : cancelled ? "err" : "brand"}">${esc(status.replace(/_/g, " "))}</span><span class="sm muted">To ${esc(d.dropoff.label)}</span>`;
+  const chip = $("#chip");
+  if (e && !done && !cancelled) { chip.hidden = false; chip.innerHTML = `About ${e.min} min away<small>${e.km.toFixed(1)} km to go, estimate</small>`; } else if (drv && !cancelled) { chip.hidden = false; chip.innerHTML = done ? "Delivered" : "Driver nearby"; } else chip.hidden = true;
+  map.setDriver(cancelled ? null : drv, {wait: status === "broadcasted", trail: ["picked_up", "in_transit", "arrived_dropoff", "delivered"].includes(status)});
+  const v = d.driver;
+  $("#drvBox").innerHTML = v ? `<div class="driver"><span class="avatar" style="width:44px;height:44px;border-radius:50%;font-size:17px">${esc((v.name || "D").charAt(0))}</span><div><b>${esc(v.name)}</b><div class="muted sm">${esc([v.vehicle_model, v.vehicle_type, v.plate_number].filter(Boolean).join(", "))}</div></div></div>`
+    : `<span class="muted">${cancelled ? "No driver was assigned." : "We're finding a driver near the pickup."}</span>`;
+  $("#progCard").hidden = cancelled;
+  $("#phases").innerHTML = PHASES.map((p, i) => `<li class="${i <= idx ? "done" : ""} ${i === idx ? "now" : ""}" ${i === idx ? 'aria-current="step"' : ""}>${p[1]}</li>`).join("");
+  $("#tl").innerHTML = (d.timeline || []).slice().reverse().map(t => `<li><span>${esc(STATE[t.state] || String(t.state).replace(/_/g, " ").toLowerCase())}</span><span class="muted sm num">${esc(when(t.at))}</span></li>`).join("") || '<li class="muted">Nothing yet. Updates appear as your driver moves.</li>';
+  if (done || cancelled) { clearInterval(timer); timer = setInterval(load, 30000); }
+}
+load(); timer = setInterval(load, 4000);
+</script>
+</body>
+</html>
