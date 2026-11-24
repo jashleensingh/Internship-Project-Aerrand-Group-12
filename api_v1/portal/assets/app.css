@@ -348,6 +348,7 @@ dialog .row.end{margin-top:22px}
 .stop-h{display:flex;align-items:center;gap:10px;min-height:28px;margin-bottom:12px}
 .stop-h h3{flex:1}
 .fgrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:12px}
+.sizes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .fgrid>.w6{grid-column:span 6} .fgrid>.w3{grid-column:span 3} .fgrid>.w2{grid-column:span 2}
 .bmap{height:230px;border-radius:var(--r-lg) var(--r-lg) 0 0}
 .sumstop{display:flex;gap:12px;align-items:flex-start;padding:7px 0;font-size:13.5px}
@@ -442,6 +443,7 @@ dialog .row.end{margin-top:22px}
   .kpis>.wallet,.kpis>.kpi:last-child{grid-column:span 2}
   .fgrid>.w3,.fgrid>.w2{grid-column:span 6}
   .fgrid>.q{grid-column:span 2}
+  .sizes{grid-template-columns:repeat(2,minmax(0,1fr))}
   .keychip code{display:none}
   .page-head .btn.primary{width:100%}
   .list>.item{flex-wrap:wrap}

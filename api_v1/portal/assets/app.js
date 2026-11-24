@@ -376,12 +376,13 @@ const placeOpts = () => PLACES.slice(1).map((p, i) => `<option value="${i + 1}">
 function addStop() {
   const n = $("#stops").children.length; if (n >= MAX_STOPS) return toast("A route holds at most 5 drop-offs.", "bad");
   const i = n + 1, u = "s" + (++stopSeq);
-  const qty = (c, v, lbl) => `<div class="w2 q"><label class="label" for="${u}-${c}">${lbl}</label><div class="qty"><button type="button" data-q="-1" aria-label="Fewer ${lbl.toLowerCase()} parcels">−</button><input id="${u}-${c}" class="s-${c}" type="number" min="0" max="30" value="${v}" inputmode="numeric"><button type="button" data-q="1" aria-label="More ${lbl.toLowerCase()} parcels">+</button></div></div>`;
+  const qty = (c, v, lbl) => `<div class="q"><label class="label" for="${u}-${c}">${lbl}</label><div class="qty"><button type="button" data-q="-1" aria-label="Fewer ${lbl.toLowerCase()} parcels">−</button><input id="${u}-${c}" class="s-${c}" type="number" min="0" max="30" value="${v}" inputmode="numeric"><button type="button" data-q="1" aria-label="More ${lbl.toLowerCase()} parcels">+</button></div></div>`;
   const d = el(`<div class="card stop"><span class="node">${i}</span><div class="card-b"><div class="stop-h"><h3>Drop-off ${i}</h3>${i > 1 ? `<button type="button" class="btn sm ghost rm">${ic("trash")}Remove</button>` : ""}</div>
     <div class="fgrid"><div class="w6"><label class="label" for="${u}-place">Address</label><select id="${u}-place" class="s-place">${placeOpts()}</select></div>
       <div class="w3"><label class="label" for="${u}-name">Receiver</label><input id="${u}-name" class="s-name" value="Customer ${i}" autocomplete="off"></div>
       <div class="w3"><label class="label" for="${u}-phone">Phone</label><input id="${u}-phone" class="s-phone" value="+1519555018${i}" inputmode="tel" autocomplete="off"></div>
-      ${qty("small", i === 1 ? 2 : 1, "Small")}${qty("medium", i === 1 ? 1 : 0, "Medium")}${qty("large", 0, "Large")}</div></div></div>`);
+      <div class="w6 sizes">${qty("small", i === 1 ? 2 : 1, "Small")}${qty("medium", i === 1 ? 1 : 0, "Medium")}${qty("large", 0, "Large")}${qty("xl", 0, "XL")}</div>
+      <p class="w6 xs faint" style="margin:-4px 0 0">Add-on per parcel: Small free, Medium $2, Large $18, XL $35. The first 4 parcels at a stop are included; each extra is $0.50.</p></div></div></div>`);
   d.querySelector(".s-place").value = String(Math.min(i, PLACES.length - 2));
   const rm = d.querySelector(".rm"); if (rm) rm.onclick = () => { d.remove(); relabel(); resetQuote(); };
   $("#stops").appendChild(d); relabel(); resetQuote();
@@ -398,7 +399,7 @@ function route() {
   const p = PLACES[+$("#pickup").value];
   const stops = $$("#stops .stop").map(s => {
     const pl = PLACES[+s.querySelector(".s-place").value], parcels = {};
-    for (const k of ["small","medium","large"]) { const n = Math.max(0, parseInt(s.querySelector(".s-" + k).value, 10) || 0); if (n > 0) parcels[k] = n; }
+    for (const k of ["small","medium","large","xl"]) { const n = Math.max(0, parseInt(s.querySelector(".s-" + k).value, 10) || 0); if (n > 0) parcels[k] = n; }
     return {pl, parcels, name:s.querySelector(".s-name").value.trim() || "Receiver", phone:s.querySelector(".s-phone").value.trim(), node:s};
   });
   return {p, stops};
@@ -415,7 +416,10 @@ function renderSlip() {
   if (!q) { box.innerHTML = `<h2>Price</h2><p class="sm muted" style="margin-top:6px">Get a price for this route. Nothing is charged until you book.</p><button class="btn primary lg block" id="slipBtn" style="margin-top:14px">Get price</button>`; $("#slipBtn").onclick = e => getQuote(e.currentTarget); return; }
   const short = wallet !== null && wallet < q.chargeTotal, need = short ? Math.ceil((q.chargeTotal - wallet) / 50) * 50 : 0;
   box.innerHTML = `<div class="row" style="margin-bottom:10px"><h2 class="grow">Price</h2><span class="badge plain" title="This price is held until the timer ends">Held for <b id="qLeft" class="num" style="margin-left:4px"></b></span></div>
-    <div class="line muted"><span>${esc(q.routeKm)} km, ${esc(q.totalParcels)} parcels</span><span>${esc(q.recommendedVehicle)}</span></div>
+    <div class="line muted"><span>${esc(q.routeKm)} km, ${esc(q.totalParcels)} parcels</span><span>${q.requiresCargoVehicle ? "cargo vehicle needed" : esc(q.recommendedVehicle)}</span></div>
+    <div class="line"><span>${q.stopCount} stop${q.stopCount > 1 ? "s" : ""} (trip + extra stops)</span><span>${money(q.dropBaseTotal)}</span></div>
+    <div class="line"><span>Distance (first 3 km free)</span><span>${money(q.distanceCharge)}</span></div>
+    <div class="line"><span>Parcel sizes</span><span>${money(q.sizeAddOnTotal)}</span></div>${q.handlingTotal ? `<div class="line"><span>Extra parcels</span><span>${money(q.handlingTotal)}</span></div>` : ""}
     <div class="line"><span>Route price</span><span>${money(q.routePrice)}</span></div><div class="line"><span>HST (${Math.round(q.hstRate * 100)}%)</span><span>${money(q.hst)}</span></div>
     <div class="line total"><b>Total</b><span>${money(q.chargeTotal)}</span></div>
     <div class="line muted"><span>Wallet balance</span><span>${money(wallet ?? 0)}</span></div>
@@ -430,7 +434,7 @@ function renderSlip() {
 const getQuote = guard(async (btn) => {
   if (!apiKey) { $("#noKey").classList.remove("hide"); throw Object.assign(new Error("Choose an API key first."), {code:"no_key"}); }
   const {p, stops} = route(); let bad = false;
-  stops.forEach(s => { const none = !Object.keys(s.parcels).length; s.node.querySelectorAll(".s-small,.s-medium,.s-large").forEach(i => i.classList.toggle("err", none)); bad = bad || none; });
+  stops.forEach(s => { const none = !Object.keys(s.parcels).length; s.node.querySelectorAll(".s-small,.s-medium,.s-large,.s-xl").forEach(i => i.classList.toggle("err", none)); bad = bad || none; });
   if (bad) throw new Error("Each drop-off needs at least one parcel.");
   await busy(btn, async () => {
     const body = {pickup:{lat:p.lat, lng:p.lng}, stops:stops.map(s => ({lat:s.pl.lat, lng:s.pl.lng, parcels:s.parcels}))};
