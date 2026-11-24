@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>Aerrand Developers</title>
+<script>
+/* set the theme and sidebar state before first paint, so the page never flashes the wrong one */
+(function(){try{var d=document.documentElement,t=localStorage.getItem("theme"),s=localStorage.getItem("side");d.setAttribute("data-theme",t==="light"?"light":"dark");if(s==="mini")d.setAttribute("data-side","mini")}catch(e){}})();
+</script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop stop-color='%23FF8528'/%3E%3Cstop offset='1' stop-color='%23EF3F45'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M7 22c5 0 4-12 9-12s4 12 9 12' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/portal/assets/leaflet.css">
+<link rel="stylesheet" href="/portal/assets/app.css">
+<link rel="stylesheet" href="/portal/assets/map.css">
+</head>
+<body>
+
+<!-- icon set: one stroke style, used as <svg class="i"><use href="#i-name"/></svg> -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FF8528"/><stop offset="1" stop-color="#EF3F45"/></linearGradient><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FF7926" stop-opacity=".3"/><stop offset="1" stop-color="#FF7926" stop-opacity="0"/></linearGradient></defs>
+  <symbol id="logo" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="url(#lg)"/><path d="M7 22c5 0 4-12 9-12s4 12 9 12" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="logo-w" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#fff"/><path d="M7 22c5 0 4-12 9-12s4 12 9 12" fill="none" stroke="#E8501F" stroke-width="3" stroke-linecap="round"/></symbol>
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9"/></symbol>
+  <symbol id="i-route" viewBox="0 0 24 24"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></symbol>
+  <symbol id="i-key" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4.5"/><path d="M11.3 11.7 20 3m-3.5 3.5 3 3M14 9l2 2"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3A4 4 0 0 0 13 5.3l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7l1-1"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2.2 2.2 0 0 0 4 0"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3"/><rect x="4" y="8" width="17" height="11" rx="2.5"/><path d="M16.5 13.5h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="M4 4l16 16M9.9 5.8A9 9 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a16 16 0 0 1-3 3.7M6.3 7.7A16 16 0 0 0 2.5 12S6 18.5 12 18.5a9 9 0 0 0 3.6-.8"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-updown" viewBox="0 0 24 24"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></symbol>
+  <symbol id="i-collapse" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15M15.5 10l-2 2 2 2"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z"/><path d="M12 10v4.5M12 17h.01"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5h.01"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4-4"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-14.3-4.3L4 8.5M4 4v4.5h4.5M4 13a8 8 0 0 0 14.3 4.3L20 15.5m0 4.5v-4.5h-4.5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4.5h6V7"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="i-pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5a7 7 0 1 0-14 0C5 14.800 12 21 12 21z"/><circle cx="12" cy="9.500" r="2.500"/></symbol>
+  <symbol id="i-truck" viewBox="0 0 24 24"><path d="M3 16V7h11v9M14 10h4l3 3v3h-7M3 16h2m10 0h-1"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24"><path d="M17 7 7 17M7 9v8h8"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M7 17 17 7M9 7h8v8"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 9h10a6 6 0 0 1 0 12h-3M4 9l4-4M4 9l4 4"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7 4.500v15l12-7.500z"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M5 5v14l10-7zM19 5v14"/></symbol>
+  <symbol id="i-ban" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m5.700 5.700 12.600 12.600"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6l-5.500 9.500A1.500 1.500 0 0 0 5.800 21h12.400a1.500 1.500 0 0 0 1.300-2.500L14 9V3M7.500 15h9"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 3 4.500 6v6c0 4.500 3.200 7.700 7.500 9 4.300-1.300 7.500-4.500 7.500-9V6z"/></symbol>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- ============ sign in ============ -->
+<main id="login" class="auth hide">
+  <section class="auth-art" id="authArt">
+    <a class="logo" href="/" aria-label="Aerrand Developers"><svg width="30" height="30"><use href="#logo-w"/></svg><span>Aerrand Developers</span></a>
+    <div class="art" aria-hidden="true">
+      <svg id="artSvg" viewBox="0 0 620 400">
+        <g transform="rotate(-9 310 200)">
+          <g class="street"><path d="M-600 -30h1900M-600 60h1900M-600 150h1900M-600 240h1900M-600 330h1900M-600 420h1900M-50 -700v1800M70 -700v1800M190 -700v1800M310 -700v1800M430 -700v1800M550 -700v1800M670 -700v1800"/></g>
+          <rect class="block" x="84" y="74" width="92" height="62" rx="6"/><rect class="block" x="324" y="74" width="92" height="62" rx="6"/><rect class="block" x="204" y="164" width="92" height="62" rx="6"/>
+          <rect class="block" x="444" y="164" width="92" height="62" rx="6"/><rect class="block" x="84" y="254" width="92" height="62" rx="6"/><rect class="block" x="324" y="254" width="92" height="62" rx="6"/>
+          <path class="way" id="artPath" d="M70 330 H190 V240 H310 V150 H430 V60 H550"/>
+          <path class="line" d="M70 330 H190 V240 H310 V150 H430 V60 H550"/>
+          <g class="pin a" transform="translate(70 330)"><circle r="15"/><text>A</text></g>
+          <g class="pin" transform="translate(190 240)"><circle r="13"/><text>1</text></g>
+          <g class="pin" transform="translate(310 150)"><circle r="13"/><text>2</text></g>
+          <g class="pin" transform="translate(550 60)"><circle r="13"/><text>3</text></g>
+          <g class="van"><circle class="halo" r="17"><animate attributeName="r" values="12;20;12" dur="2.4s" repeatCount="indefinite"/></circle><circle class="core" r="7"/>
+            <animateMotion dur="9s" repeatCount="indefinite" calcMode="linear" path="M70 330 H190 V240 H310 V150 H430 V60 H550"/></g>
+        </g>
+      </svg>
+    </div>
+    <h1>Delivery infrastructure for your product</h1>
+    <p class="lead">Create API keys, price a route, book it, and follow every parcel on a live map.</p>
+    <ul>
+      <li><svg class="i"><use href="#i-check"/></svg>Keys are shown once and stored only as a hash</li>
+      <li><svg class="i"><use href="#i-check"/></svg>One pickup and up to five drop-offs per route</li>
+      <li><svg class="i"><use href="#i-check"/></svg>Signed webhooks for every status change</li>
+    </ul>
+  </section>
+  <section class="auth-form">
+    <div>
+      <div class="auth-card">
+        <svg width="36" height="36" aria-hidden="true"><use href="#logo"/></svg>
+        <h2>Sign in to your account</h2>
+        <p class="sub">Manage your API keys, deliveries and wallet.</p>
+        <form id="loginForm" class="stack" novalidate>
+          <div><label class="label" for="u">Username</label><input id="u" autocomplete="username" autocapitalize="none" spellcheck="false" autofocus></div>
+          <div><label class="label" for="p">Password</label>
+            <div class="pw"><input id="p" type="password" autocomplete="current-password"><button type="button" class="btn ghost icon" id="showPw" aria-pressed="false" aria-label="Show password"><svg class="i"><use href="#i-eye"/></svg></button></div></div>
+          <div id="loginErr" class="alert err hide" role="alert"><svg class="i"><use href="#i-alert"/></svg><div></div></div>
+          <button class="btn primary lg block" id="loginBtn">Sign in</button>
+          <div class="or"><span>or</span></div>
+          <button type="button" class="btn lg block" id="demoFill"><svg class="i"><use href="#i-flask"/></svg>Use the demo account</button>
+        </form>
+      </div>
+      <p class="auth-foot">The demo account uses test data. No real deliveries or payments.</p>
+    </div>
+  </section>
+</main>
+
+<!-- ============ app ============ -->
+<div id="app" class="shell hide">
+  <aside class="side" id="side" aria-label="Sidebar">
+    <div class="side-head"><a class="logo" href="#overview"><svg width="28" height="28"><use href="#logo"/></svg><span>Aerrand<small>Developers</small></span></a></div>
+    <nav id="tabs" aria-label="Main">
+      <button data-t="overview" title="Overview"><svg class="i"><use href="#i-grid"/></svg><span class="lbl">Overview</span></button>
+      <div class="group">Deliveries</div>
+      <button data-t="book" title="New delivery"><svg class="i"><use href="#i-box"/></svg><span class="lbl">New delivery</span></button>
+      <button data-t="track" title="Track"><svg class="i"><use href="#i-route"/></svg><span class="lbl">Track</span></button>
+      <div class="group">Developers</div>
+      <button data-t="keys" title="API keys"><svg class="i"><use href="#i-key"/></svg><span class="lbl">API keys</span></button>
+      <button data-t="hooks" title="Webhooks"><svg class="i"><use href="#i-link"/></svg><span class="lbl">Webhooks</span></button>
+      <div class="group">Account</div>
+      <button data-t="wallet" title="Wallet"><svg class="i"><use href="#i-wallet"/></svg><span class="lbl">Wallet</span></button>
+      <button data-t="notes" title="Notifications"><svg class="i"><use href="#i-bell"/></svg><span class="lbl">Notifications</span><span id="unread" class="pill hide"></span></button>
+    </nav>
+    <div class="side-foot">
+      <div class="menu" id="acctMenu" role="menu" hidden>
+        <button role="menuitem" id="theme"><svg class="i"><use href="#i-sun"/></svg><span>Light theme</span></button>
+        <button role="menuitem" id="sideToggle"><svg class="i"><use href="#i-collapse"/></svg><span>Collapse sidebar</span></button>
+        <hr>
+        <button role="menuitem" id="logout"><svg class="i"><use href="#i-out"/></svg><span>Sign out</span></button>
+      </div>
+      <button class="acct" id="acctBtn" aria-haspopup="menu" aria-expanded="false" aria-controls="acctMenu">
+        <span class="avatar" id="avatar">A</span><span class="who"><b id="bizName">Your business</b><span id="bizStatus"></span></span><svg class="i"><use href="#i-updown"/></svg>
+      </button>
+    </div>
+  </aside>
+  <div class="scrim" id="scrim"></div>
+
+  <div class="body">
+    <header class="top">
+      <button class="btn ghost icon" id="menuBtn" aria-label="Open menu" aria-controls="side"><svg class="i lg"><use href="#i-menu"/></svg></button>
+      <div class="crumb grow" id="pageTitle">Overview</div>
+      <button class="keychip" id="keyChip" title="Change the API key this page uses"></button>
+      <button class="btn ghost icon bell" id="bell" aria-label="Notifications" data-go="notes"><svg class="i lg"><use href="#i-bell"/></svg><span id="bellCount" class="pill hide"></span></button>
+      <button class="btn ghost icon" id="themeQuick" aria-label="Switch to light theme"><svg class="i lg"><use href="#i-sun"/></svg></button>
+    </header>
+
+    <main class="main" id="main" tabindex="-1">
+
+      <!-- overview -->
+      <section id="t-overview" hidden>
+        <div class="page-head"><div><h1 id="greet">Overview</h1><p>Your balance, keys and recent deliveries at a glance.</p></div>
+          <button class="btn primary" data-go="book"><svg class="i"><use href="#i-plus"/></svg>New delivery</button></div>
+        <div class="kpis">
+          <div class="card kpi wallet">
+            <div class="k"><svg class="i"><use href="#i-wallet"/></svg>Wallet balance</div>
+            <div class="v" id="walletBig"><span class="skel" style="width:150px;height:26px"></span></div>
+            <div class="row" style="gap:8px"><button class="btn sm" data-topup="50"><svg class="i"><use href="#i-plus"/></svg>Add $50</button><button class="btn sm" data-topup="100"><svg class="i"><use href="#i-plus"/></svg>Add $100</button><button class="btn sm ghost" data-go="wallet">View wallet</button></div>
+          </div>
+          <button class="card kpi" data-go="keys"><span class="k"><svg class="i"><use href="#i-key"/></svg>Active API keys</span><span class="v" id="stKeys"><span class="skel" style="width:40px;height:24px"></span></span><span class="s" id="stKeysSub">&nbsp;</span></button>
+          <button class="card kpi" data-go="track"><span class="k"><svg class="i"><use href="#i-box"/></svg>Deliveries booked</span><span class="v" id="stDel">0</span><span class="s">In this browser session</span></button>
+          <button class="card kpi" data-go="notes"><span class="k"><svg class="i"><use href="#i-bell"/></svg>Unread notifications</span><span class="v" id="stNotes"><span class="skel" style="width:40px;height:24px"></span></span><span class="s" id="stNotesSub">&nbsp;</span></button>
+        </div>
+        <div class="cols">
+          <div>
+            <div class="card" id="activePanel" hidden style="margin-bottom:16px">
+              <div class="card-h"><h2>Recent deliveries</h2><button class="btn sm ghost" data-go="track">Open Track</button></div>
+              <div id="activeRows" class="list"></div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h2>Wallet activity</h2><button class="btn sm ghost" data-go="wallet">View all</button></div>
+              <div id="ovChart"></div>
+              <div style="overflow-x:auto"><table class="table"><thead><tr><th>Type</th><th class="hide-sm">When</th><th class="r">Amount</th><th class="r hide-sm">Balance</th></tr></thead><tbody id="txRows"><tr><td colspan="4"><span class="skel" style="width:60%"></span></td></tr></tbody></table></div>
+            </div>
+          </div>
+          <div>
+            <div class="card">
+              <div class="card-h"><h2>API connection</h2></div>
+              <div class="card-b">
+                <div id="conn" class="alert"></div>
+                <div class="row" style="margin-top:14px"><button class="btn" id="testKey">Test connection</button><button class="btn ghost" id="setKey">Use another key</button></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-h"><h2>Get started</h2><span class="xs muted" id="stepsDone"></span></div>
+              <ol class="steps" id="steps">
+                <li data-step="key"><span class="n"></span><div><b>Create an API key</b><a href="#keys">Go to API keys</a></div></li>
+                <li data-step="use"><span class="n"></span><div><b>Select a key for this page</b><span class="sm muted">Paste one, or use a new key right after creating it.</span></div></li>
+                <li data-step="book"><span class="n"></span><div><b>Price and book a delivery</b><a href="#book">Go to New delivery</a></div></li>
+                <li data-step="hook"><span class="n"></span><div><b>Add a webhook endpoint</b><a href="#hooks">Go to Webhooks</a></div></li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- new delivery -->
+      <section id="t-book" hidden>
+        <div class="page-head"><div><h1>New delivery</h1><p>One pickup, up to five drop-offs. The server sets the price and you pay once from your wallet.</p></div></div>
+        <ol class="stepper" id="bookSteps" aria-label="Booking progress"><li data-s="1"><span class="n">1</span>Route</li><li data-s="2"><span class="n">2</span>Price</li><li data-s="3"><span class="n">3</span>Booked</li></ol>
+        <div id="noKey" class="alert warn hide" style="margin-bottom:16px"><svg class="i"><use href="#i-alert"/></svg><div><b>Choose an API key first.</b> Create one under <a href="#keys">API keys</a>, or paste one with the key button at the top of the page.</div></div>
+        <div id="bookForm" class="book">
+          <div class="routeline">
+            <div class="card stop"><span class="node a">A</span><div class="card-b">
+              <div class="stop-h"><h3>Pickup</h3></div>
+              <label class="label sr" for="pickup">Pickup address</label><select id="pickup"></select>
+            </div></div>
+            <div id="stops"></div>
+            <div class="row" style="margin-left:62px"><button class="btn" id="addStop"><svg class="i"><use href="#i-plus"/></svg>Add drop-off</button><span class="sm muted" id="stopCount"></span></div>
+          </div>
+          <aside class="book-side" aria-live="polite">
+            <div class="card"><div class="mapwrap"><div id="bmap" class="bmap" role="img" aria-label="Map preview of your route"></div></div>
+              <div class="card-b"><h2>Route summary</h2><div id="slipStops" style="margin-top:10px"></div><p class="xs faint" style="margin-top:8px">Preview lines are straight, not road routes.</p></div></div>
+            <div class="card"><div class="card-b" id="slipPrice"></div></div>
+          </aside>
+        </div>
+        <div id="bookDone" class="hide"></div>
+      </section>
+
+      <!-- track -->
+      <section id="t-track" hidden>
+        <div class="page-head"><div><h1>Track</h1><p>Follow a delivery from pickup to door. This page refreshes on its own while a delivery is moving.</p></div></div>
+        <div class="track">
+          <div class="card">
+            <div class="card-b">
+              <label class="label" for="eid">Find a delivery</label>
+              <div class="row" style="flex-wrap:nowrap;gap:8px"><input id="eid" placeholder="Paste a delivery id" spellcheck="false"><button class="btn primary" id="load">Load</button></div>
+            </div>
+            <div id="recentList" class="pick"></div>
+          </div>
+          <div id="trackOut"></div>
+        </div>
+      </section>
+
+      <!-- keys -->
+      <section id="t-keys" hidden>
+        <div class="page-head"><div><h1>API keys</h1><p>Keys let your software call the delivery API. A key is shown once, so copy it when you create it.</p></div></div>
+        <div class="cols even">
+          <div class="card">
+            <div class="card-h"><h2>Your keys</h2><div class="tabs" id="keyFilter" role="group" aria-label="Filter keys"><button data-f="all" aria-pressed="true">All</button><button data-f="active" aria-pressed="false">Active</button><button data-f="revoked" aria-pressed="false">Revoked</button></div></div>
+            <div id="keyRows" class="list"><div class="item"><span class="skel" style="width:50%"></span></div></div>
+          </div>
+          <div>
+            <form id="keyForm" class="card" novalidate>
+              <div class="card-h"><h2>Create a key</h2></div>
+              <div class="card-b stack">
+                <div><label class="label" for="kName">Name</label><input id="kName" placeholder="Shopify store" maxlength="120"></div>
+                <div><span class="label" id="kenvL">Environment</span>
+                  <div class="seg" role="radiogroup" aria-labelledby="kenvL"><label><input type="radio" name="kenv" value="live" checked><span>Live</span></label><label><input type="radio" name="kenv" value="test"><span>Test</span></label></div>
+                  <p class="help" id="envHelp">Live keys book real deliveries and spend wallet money.</p></div>
+                <div><span class="label">Permissions</span><div class="checks" id="kScopes"></div></div>
+                <button class="btn primary block" id="keyBtn">Create key</button>
+              </div>
+            </form>
+            <div id="newKey" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- webhooks -->
+      <section id="t-hooks" hidden>
+        <div class="page-head"><div><h1>Webhooks</h1><p>Give us a web address and we post a signed message to it whenever a delivery changes, so your system never has to ask.</p></div></div>
+        <div class="cols even">
+          <div>
+            <div class="card"><div class="card-h"><h2>Endpoints</h2><span class="xs muted" id="hookCount"></span></div><div id="hookRows" class="list"><div class="item"><span class="skel" style="width:60%"></span></div></div></div>
+            <div class="card">
+              <div class="card-h"><h2>Verify each message</h2></div>
+              <div class="card-b stack">
+                <p class="sm muted">Every request carries two headers. Check the signature with your endpoint's signing secret before you trust the body, and ignore event ids you have already handled.</p>
+                <code class="code">Aerrand-Event-Id: evt_…
+Aerrand-Signature: t=&lt;unix time&gt;,v1=&lt;hex&gt;
+
+v1 = HMAC_SHA256(secret, t + "." + raw_body)</code>
+                <p class="sm muted">Reject a message when the timestamp is more than 5 minutes old. If your server is down we retry up to five more times with growing waits.</p>
+              </div>
+            </div>
+          </div>
+          <div>
+            <form id="hookForm" class="card" novalidate>
+              <div class="card-h"><h2>Add an endpoint</h2></div>
+              <div class="card-b stack">
+                <div><label class="label" for="hUrl">HTTPS address</label><input id="hUrl" type="url" placeholder="https://example.com/aerrand-events" spellcheck="false"></div>
+                <div><span class="label" id="henvL">Environment</span><div class="seg" role="radiogroup" aria-labelledby="henvL"><label><input type="radio" name="henv" value="live" checked><span>Live</span></label><label><input type="radio" name="henv" value="test"><span>Test</span></label></div></div>
+                <div><span class="label">Events</span><div class="checks" id="hEvents"><label class="check"><input type="checkbox" value="*" checked><span>All events</span></label></div><p class="help">Leave “All events” on to receive every delivery update.</p></div>
+                <button class="btn primary block" id="hookBtn">Add endpoint</button>
+              </div>
+            </form>
+            <div id="newHook" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- wallet -->
+      <section id="t-wallet" hidden>
+        <div class="page-head"><div><h1>Wallet</h1><p>Deliveries are paid from this balance. A cancelled stop is refunded here, minus any fee.</p></div></div>
+        <div class="cols">
+          <div class="card">
+            <div class="card-h"><h2>Transactions</h2><div class="tabs" id="txFilter" role="group" aria-label="Filter transactions"><button data-f="all" aria-pressed="true">All</button><button data-f="funds_added" aria-pressed="false">Added</button><button data-f="errand_charge" aria-pressed="false">Payments</button><button data-f="errand_refund" aria-pressed="false">Refunds</button></div></div>
+            <div style="overflow-x:auto"><table class="table"><thead><tr><th>Type</th><th>When</th><th class="r">Amount</th><th class="r">Balance after</th></tr></thead><tbody id="txAll"><tr><td colspan="4"><span class="skel" style="width:60%"></span></td></tr></tbody></table></div>
+          </div>
+          <div>
+            <div class="card kpi wallet" style="cursor:default">
+              <div class="k"><svg class="i"><use href="#i-wallet"/></svg>Available balance</div>
+              <div class="v" id="walletBig2"><span class="skel" style="width:150px;height:26px"></span></div>
+              <div class="row" style="gap:8px"><button class="btn sm" data-topup="50"><svg class="i"><use href="#i-plus"/></svg>Add $50</button><button class="btn sm" data-topup="100"><svg class="i"><use href="#i-plus"/></svg>Add $100</button></div>
+              <div class="s">Test top-up. No card is charged.</div>
+            </div>
+            <div class="card"><div class="card-h"><h2>Balance over time</h2></div><div id="wChart"></div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- notifications -->
+      <section id="t-notes" hidden>
+        <div class="page-head"><div><h1>Notifications</h1><p>You hear about it here when a delivery is created, delivered or cancelled.</p></div>
+          <div class="row"><button class="btn" id="readAll"><svg class="i"><use href="#i-check"/></svg>Mark all as read</button><button class="btn icon" id="refreshNotes" aria-label="Refresh notifications" data-tip="Refresh"><svg class="i"><use href="#i-refresh"/></svg></button></div></div>
+        <div class="card">
+          <div class="card-h"><h2>Inbox</h2><div class="tabs" id="noteFilter" role="group" aria-label="Filter notifications"><button data-f="all" aria-pressed="true">All</button><button data-f="unread" aria-pressed="false">Unread<span class="count" id="noteUnreadN"></span></button></div></div>
+          <div id="noteList" class="list"><div class="item"><span class="skel" style="width:55%"></span></div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<dialog id="dlg" aria-labelledby="dlgT"><form method="dialog" id="dlgForm"><h2 id="dlgT"></h2><p class="muted" id="dlgB"></p>
+  <div id="dlgI" class="hide" style="margin-top:16px"><label class="label" for="dlgIn" id="dlgL"></label><input id="dlgIn" autocomplete="off" spellcheck="false"></div>
+  <div class="row end"><button type="button" class="btn" id="dlgNo">Cancel</button><button class="btn primary" id="dlgYes" value="ok">OK</button></div></form></dialog>
+<div id="toasts" role="status" aria-live="polite"></div>
+
+<script src="/portal/assets/leaflet.js"></script>
+<script src="/portal/assets/map.js"></script>
+<script src="/portal/assets/app.js"></script>
+</body>
+</html>
