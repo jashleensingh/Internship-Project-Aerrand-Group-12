@@ -9,6 +9,7 @@ from api_v1.booking.services import split_total
 from api_v1.common.testing import (ApiTestMixin, make_business, make_key, multi_body, multi_quote_body,
                                    route_quote_body, single_body, single_quote_body, STOP1, STOP2)
 from decimal import Decimal
+from unittest import mock
 
 
 class PricingTests(TestCase):
@@ -46,6 +47,48 @@ class PricingTests(TestCase):
             shares = split_total(total, n)
             self.assertEqual(sum(shares), total)
             self.assertEqual(len(shares), n)
+
+
+class SpecV2Tests(TestCase):
+    """Aerrand Business Pricing Engine Specification v2.0 (sections 4 to 7)."""
+    P = (42.31, -83.03)
+
+    def quote(self, stops, km):
+        with mock.patch.object(pricing, "road_km", return_value=Decimal(str(km))):
+            return pricing.route_quote(self.P, [{"lat": 42.32, "lng": -83.02, "parcels": p} for p in stops])
+
+    def test_worked_example_section_4_6(self):
+        q = self.quote([{"medium": 1}] * 4, 16)
+        self.assertEqual((q["dropBaseTotal"], q["distanceCharge"], q["sizeAddOnTotal"], q["handlingTotal"]),
+                         (18.50, 16.25, 8.00, 0.0))
+        self.assertEqual((q["routePrice"], q["hst"], q["chargeTotal"]), (42.75, 5.56, 48.31))
+        self.assertEqual(q["mode"], "batch")
+        self.assertNotIn("volumeSurcharge", q)
+
+    def test_free_km_and_single_mode(self):
+        q = self.quote([{"small": 1}], 3)
+        self.assertEqual((q["distanceCharge"], q["routePrice"], q["mode"]), (0.0, 8.0, "single"))
+
+    def test_size_matrix_and_bulky_rule(self):
+        q = self.quote([{"large": 1, "small": 1}], 3)               # AC + accessory
+        self.assertEqual((q["sizeAddOnTotal"], q["requiresCargoVehicle"]), (18.0, False))
+        q = self.quote([{"large": 1}, {"xl": 1}], 3)                # counted across the whole route
+        self.assertEqual((q["sizeAddOnTotal"], q["bulkyParcels"], q["requiresCargoVehicle"]), (53.0, 2, True))
+
+    def test_handling_is_per_stop(self):
+        self.assertEqual(self.quote([{"small": 4}, {"small": 4}], 3)["handlingTotal"], 0.0)
+        self.assertEqual(self.quote([{"small": 6}], 3)["handlingTotal"], 1.0)
+
+    def test_payout_and_hold(self):
+        self.assertEqual(pricing.aerrander_payout("42.75", 4, 16), Decimal("28.64"))   # 67% beats the floor (25.80)
+        self.assertEqual(pricing.aerrander_payout("8.00", 1, 3), Decimal("5.65"))      # floor beats 67% (5.36)
+        self.assertEqual(self.quote([{"medium": 1}] * 4, 16)["holdAmount"], 53.14)     # 48.31 x 1.10
+
+    def test_rates_come_from_settings(self):
+        from django.test import override_settings
+        with override_settings(AERRAND_PRICING={"trip_base": "10.00", "per_km_rate": "2"}):
+            q = self.quote([{"small": 1}], 5)
+        self.assertEqual((q["dropBaseTotal"], q["distanceCharge"]), (10.0, 4.0))
 
 
 class QuoteApiTests(ApiTestMixin, TestCase):
