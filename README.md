@@ -3,7 +3,7 @@
 Developer API keys plus the public delivery API for Aerrand. Django + Django REST Framework.
 It follows the partner document *"Aerrand API — Request & response shapes"* (quote → book → track → webhooks).
 
-**88 automated tests.** Run them with one command (see below).
+**100 automated tests.** Run them with one command (see below).
 
 ## Run it (Windows PowerShell)
 
@@ -32,6 +32,26 @@ py manage.py simulate_driver <errand_id> location --lat 42.3110 --lng -83.0250
 py manage.py simulate_driver <errand_id> all
 py manage.py run_dispatcher --once      # sends pending webhooks
 ```
+
+## Browser portal (open http://127.0.0.1:8000/)
+
+A portal that uses the same API a customer would: sign in, create and revoke keys, price and book a route
+(up to 5 stops), track it, cancel it, manage the wallet, read notifications and add webhook endpoints. Sign in as
+`acme` / `Welcome123!` after `py manage.py seed_data`, or click "Use the demo account".
+
+- Lives in `api_v1/portal/`. No build step and no framework:
+  - `index.html` the markup for sign-in and every page
+  - `assets/app.css` the design system (colour, type and spacing tokens, then components). Dark theme first, light theme by overriding the same tokens.
+  - `assets/app.js` the behaviour. Every number, list and chart comes from `/dashboard/...` and `/v1/...` responses.
+  - `assets/map.js`, `assets/map.css` the map; `track.html` the customer page (shares `app.css`).
+  - `views.py`, `urls.py`, `tests.py` serve the pages and files.
+- Pages: Overview, New delivery, Track, API keys, Webhooks, Wallet, Notifications. The sidebar collapses on desktop and becomes a drawer on a phone.
+- The wallet chart plots the balance after each of the last 20 transactions (the same list as the table).
+- The "Test tools" box on Track ("Next driver step", "Play full journey") calls `POST /portal/simulate/<errand_id>`, a test-mode stand-in for the Aerrander app. It only works while `DJANGO_DEBUG=1`.
+- **Live map:** the booking form previews the route, and the Track tab shows the driver moving on a map with an ETA. "Play full journey" runs the whole delivery in test mode.
+- **Customer page:** `/track/<errand_id>` is a no-login page you can send to your customer (uses `/v1/errands/<id>/public`).
+- Map uses Leaflet (bundled in `api_v1/portal/assets/`) and OpenStreetMap tiles, so it needs internet. Routes are straight lines and the ETA is an estimate (30 km/h). Without internet the pins and route still show.
+- `CsrfViewMiddleware` is enabled in `config/settings.py` so browser sessions can send the CSRF token.
 
 ## Endpoints
 
@@ -78,12 +98,24 @@ py manage.py run_dispatcher --once      # sends pending webhooks
 - **Notifications**: in-app notification (and a realtime push hook) when a delivery is created, cancelled (the partner asked for this) or delivered.
 - **Errors**: one shape, `{"error": {"code", "message", "details", "request_id"}}`.
 
+## Route pricing (Pricing Engine Spec v2.0)
+
+`route price = drop bases + distance + size add-ons + parcel handling`, then 13% HST. All CAD, no time component.
+
+- Drop bases: $8.00 first stop + $3.50 each extra stop (max 5 stops). Distance: first 3 km free, then $1.25/km.
+- Size add-ons per parcel: Small $0, Medium $2, Large $18, XL $35. Each stop has a count per size (not one shared size).
+- Handling: first 4 parcels at a stop included, then $0.50 each (counted per stop).
+- 2 or more Large/XL parcels on a route set `requiresCargoVehicle`. There is no van surcharge any more.
+- `holdAmount` in a quote = total x (1 + buffer). `pricing.aerrander_payout()` = max(67% of route price, $3.25 x stops + $0.80 x km).
+- Every rate can be overridden with `AERRAND_PRICING` in settings (see `ROUTE_DEFAULTS` in `booking/pricing.py`). Hold buffer (10%) is a placeholder: confirm with Aerrand.
+- Test: the spec's worked example ($42.75 + $5.56 HST = $48.31) is in `booking/tests.py` (`SpecV2Tests`).
+
 ## What is a stand-in (replace when joining Aerrand's repo)
 
 | Stand-in here | Aerrand's real thing |
 |---|---|
 | SQLite | MongoDB |
-| `booking/pricing.py` (placeholder rates) | the existing route and parcel pricing engines |
+| `booking/pricing.py` parcel engine (placeholder rates); the route engine follows the partner's Pricing Engine Spec v2.0 | Aerrand's existing parcel engine; distance is straight line x 1.3 until a routing service gives the driven km |
 | `booking/coverage.py` (Windsor only) | the activated-cities data |
 | `tracking/services.py` + `simulate_driver` | the Aerrander app writing the `deliveries` document |
 | `common/realtime.py` (logs only) | Firebase Realtime Database push |
