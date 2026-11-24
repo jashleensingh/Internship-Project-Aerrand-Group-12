@@ -2,8 +2,10 @@
 are placeholders: in Aerrand's repo these two functions call the existing route engine (order/business_pricing.py)
 and parcel engine, and everything else in this module stays the same.
 
-Route engine  : trip base, base per extra stop, distance beyond a free allowance, size add-ons, handling past the
-                included parcel count, flat van-on-volume surcharge, then HST. No time-of-day component.
+Route engine  : follows "Aerrand Business Pricing Engine Specification v2.0": trip base + drop bases, distance beyond
+                3 free km, per-parcel size add-ons (L $18, XL $35), handling past 4 parcels per stop, then HST.
+                No time-based part and no van surcharge. 2+ Large/XL parcels on a route need a cargo vehicle.
+                Every number can be overridden through settings.AERRAND_PRICING (see route_config()).
 Parcel engine : adds rush / night surcharges, optional priority multiplier, and Aerrand Guard when a declared
                 value is present (the item value is held in escrow, in the total but not taxed).
 """
@@ -14,15 +16,22 @@ from zoneinfo import ZoneInfo
 from api_v1.common.geo import haversine_km
 
 CURRENCY = "CAD"
-HST_RATE = D("0.13")
+HST_RATE = D("0.13")   # parcel engine
 TIERS = ("small", "medium", "large", "xl")
 UNITS = {"small": D("0.5"), "medium": D("1"), "large": D("2"), "xl": D("4")}
-SIZE_ADDON = {"small": D("0"), "medium": D("2.00"), "large": D("5.00"), "xl": D("9.00")}
-FIRST_STOP, EXTRA_STOP = D("8.00"), D("3.50")
-FREE_KM, PER_KM, ROAD_FACTOR = D("2.0"), D("1.10"), D("1.3")
-INCLUDED_PARCELS, HANDLING_FEE = 5, D("1.00")
-VAN_ON_VOLUME_UNITS, VAN_CAPACITY_UNITS, VOLUME_SURCHARGE = D("10"), D("24"), D("15.00")
+SIZE_ADDON = {"small": D("0"), "medium": D("2.00"), "large": D("5.00"), "xl": D("9.00")}   # parcel (customer) engine
+ROAD_FACTOR = D("1.3")   # stand-in: straight line x 1.3 until a routing provider gives the optimized driven km
+VAN_CAPACITY_UNITS = D("24")
+ROUTE_DEFAULTS = {       # spec sections 9 and 10 (launch values)
+    "trip_base": "8.00", "drop_base": "3.50", "free_km": "3", "per_km_rate": "1.25",
+    "size_addon": {"small": "0", "medium": "2.00", "large": "18.00", "xl": "35.00"},
+    "bulky_sizes": ["large", "xl"], "bulky_vehicle_threshold": 2,
+    "included_parcels": 4, "handling_fee": "0.50", "hst_rate": "0.13",
+    "aerrander_split_rate": "0.67", "payout_per_stop": "3.25", "payout_per_km": "0.80",
+    "hold_buffer_pct": "0.10",   # spec: "per existing payments configuration" - confirm the real value
+}
 PARCEL_BASE = D("6.00")
+FREE_KM, PER_KM = D("2.0"), D("1.10")   # parcel engine only; the route engine uses route_config()
 GUARD_RATE = D("0.03")
 RUSH, NIGHT, PRIORITY_MULT = D("1.00"), D("3.00"), D("1.5")
 LOCAL_TZ = ZoneInfo("America/Toronto")
@@ -57,26 +66,59 @@ def recommended_vehicle(units):
     return "scooter" if units <= D("1.5") else "motorcycle" if units <= 6 else "car" if units <= 10 else "van"
 
 
+def route_config():
+    """Spec defaults, overridden by settings.AERRAND_PRICING (a dict with any of the same keys)."""
+    from django.conf import settings
+    cfg = {**ROUTE_DEFAULTS, **getattr(settings, "AERRAND_PRICING", {})}
+    cfg["size_addon"] = {**ROUTE_DEFAULTS["size_addon"], **(cfg["size_addon"] or {})}
+    num = ("trip_base", "drop_base", "free_km", "per_km_rate", "handling_fee", "hst_rate", "aerrander_split_rate",
+           "payout_per_stop", "payout_per_km", "hold_buffer_pct")
+    out = {k: D(str(cfg[k])) for k in num}
+    out["size_addon"] = {k: D(str(v)) for k, v in cfg["size_addon"].items()}
+    out["bulky_sizes"] = tuple(cfg["bulky_sizes"])
+    out["bulky_vehicle_threshold"] = int(cfg["bulky_vehicle_threshold"])
+    out["included_parcels"] = int(cfg["included_parcels"])
+    return out
+
+
+def aerrander_payout(route_price, stop_count, route_km, cfg=None):
+    """Spec section 6: the higher of 67% of the pre-tax price or $3.25 x stops + $0.80 x km. Tips are never included."""
+    cfg = cfg or route_config()
+    floor = cfg["payout_per_stop"] * stop_count + cfg["payout_per_km"] * D(str(route_km))
+    return q2(max(D(str(route_price)) * cfg["aerrander_split_rate"], floor))
+
+
+def hold_amount(charge_total, cfg=None):
+    """Spec section 7: card authorization = charge_total x (1 + buffer)."""
+    cfg = cfg or route_config()
+    return q2(D(str(charge_total)) * (1 + cfg["hold_buffer_pct"]))
+
+
 def route_quote(pickup, stops):
-    """pickup = (lat, lng); stops = [{"lat","lng","parcels": {tier: count}}]. Returns the response body (without id/expiry)."""
+    """pickup = (lat, lng); stops = [{"lat","lng","parcels": {tier: count}}]. Returns the response body (without id/expiry).
+    Route price = drop bases + distance + size add-ons + handling (spec section 4). HST on top."""
+    cfg = route_config()
     n = len(stops)
     km = road_km([pickup] + [(s["lat"], s["lng"]) for s in stops])
-    base = FIRST_STOP + EXTRA_STOP * (n - 1)
-    dist = distance_charge(km)
-    size_add = sum(SIZE_ADDON[t] * c for s in stops for t, c in s["parcels"].items())
-    handling = sum(max(0, sum(s["parcels"].values()) - INCLUDED_PARCELS) * HANDLING_FEE for s in stops)
+    base = cfg["trip_base"] + cfg["drop_base"] * (n - 1)
+    dist = q2(max(D("0"), km - cfg["free_km"]) * cfg["per_km_rate"])
+    size_add = sum(cfg["size_addon"][t] * c for s in stops for t, c in s["parcels"].items())
+    handling = sum(max(0, sum(s["parcels"].values()) - cfg["included_parcels"]) * cfg["handling_fee"] for s in stops)
     units = sum(UNITS[t] * c for s in stops for t, c in s["parcels"].items())
-    volume = VOLUME_SURCHARGE if VAN_ON_VOLUME_UNITS < units <= VAN_CAPACITY_UNITS else D("0")
-    route_price = q2(base + dist + size_add + handling + volume)
-    hst = q2(route_price * HST_RATE)
+    bulky = sum(c for s in stops for t, c in s["parcels"].items() if t in cfg["bulky_sizes"])
+    needs_cargo = bulky >= cfg["bulky_vehicle_threshold"]
+    route_price = q2(base + dist + size_add + handling)
+    hst = q2(route_price * cfg["hst_rate"])
     total = route_price + hst
     return {
-        "currency": CURRENCY, "stopCount": n,
+        "currency": CURRENCY, "stopCount": n, "mode": "single" if n == 1 else "batch",
         "totalParcels": sum(sum(s["parcels"].values()) for s in stops),
         "routeKm": f(km), "dropBaseTotal": f(base), "distanceCharge": f(dist), "sizeAddOnTotal": f(size_add),
-        "handlingTotal": f(handling), "volumeSurcharge": f(volume), "routePrice": f(route_price),
-        "hstRate": float(HST_RATE), "hst": f(hst), "chargeTotal": f(total), "amount_cents": int(total * 100),
-        "recommendedVehicle": recommended_vehicle(units), "requiresCargoVehicle": units > VAN_ON_VOLUME_UNITS,
+        "handlingTotal": f(handling), "routePrice": f(route_price),
+        "hstRate": float(cfg["hst_rate"]), "hst": f(hst), "chargeTotal": f(total), "amount_cents": int(total * 100),
+        "holdAmount": float(hold_amount(total, cfg)),
+        "recommendedVehicle": "van" if needs_cargo else recommended_vehicle(units),
+        "requiresCargoVehicle": needs_cargo, "bulkyParcels": bulky,
         "totalCargoUnits": float(units), "overVanCapacity": units > VAN_CAPACITY_UNITS,
     }
 
